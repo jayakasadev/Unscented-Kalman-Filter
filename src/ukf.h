@@ -82,6 +82,9 @@ public:
     // NIS for laser
     double NIS_laser_;
 
+    // turn unscented transformation on or off and use linear kalman filter for laser
+    bool unscented_;
+
     /**
      * Constructor
      */
@@ -142,6 +145,22 @@ private:
      */
     void CalculateMeanCovariance();
 
+    // linear kalman filter for laser
+
+    /**
+     * Method for transforming predicted state into measurement state for Laser
+     */
+    void PredictLaserMeasurements();
+
+    /**
+     * Calculates Kalman Gain and NIS for Laser
+     *
+     * @param meas_package
+     */
+    void UpdateStateLaser(MeasurementPackage meas_package);
+
+    // unscented transformation for lidar
+
     /**
      * Method for transforming predicted state into measurement state for Laser and cross correlation matrix
      *
@@ -151,16 +170,6 @@ private:
      * @param Tc
      */
     void PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
-
-    /**
-     * Method for transforming predicted state into measurement state for Radar and cross correlation matrix
-     *
-     * @param Zsig
-     * @param zpred
-     * @param S
-     * @param Tc
-     */
-    void PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
 
     /**
      * Calculates Kalman Gain and NIS for Laser
@@ -173,6 +182,18 @@ private:
      */
     void UpdateStateLaser(MeasurementPackage meas_package, MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
 
+    // unscented transformation for radar
+
+    /**
+     * Method for transforming predicted state into measurement state for Radar and cross correlation matrix
+     *
+     * @param Zsig
+     * @param zpred
+     * @param S
+     * @param Tc
+     */
+    void PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
+
     /**
      * Calculates Kalman Gain and NIS for Radar
      *
@@ -183,6 +204,14 @@ private:
      * @param Tc
      */
     void UpdateStateRadar(MeasurementPackage meas_package, MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
+
+    /**
+     * Method for normalizing angles
+     *
+     * @param phi
+     */
+    void NormalizeAngle(double& phi);
+
 };
 
 #endif /* UKF_H */

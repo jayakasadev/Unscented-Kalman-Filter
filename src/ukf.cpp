@@ -63,7 +63,7 @@ UKF::UKF() {
     // weights to invert the spreading factor lambda to get the predicted covariance
     weights_ = VectorXd::Zero(n_sig);
     weights_(0) = lambda_ / (lambda_ + n_aug_);
-    for(int a = 0; a < n_sig; a++){ // 2n + 1
+    for(int a = 1; a < n_sig; a++){ // 2n + 1
         weights_(a) = 0.5 / (lambda_ + n_aug_);
     }
 
@@ -74,6 +74,12 @@ UKF::UKF() {
     n_radar = 3;
     // number of laser input values
     n_laser = 2;
+
+    // just doing this defensively, since in c++ an uninitialized variable just takes on whatever was there previously
+    is_initialized_ = false;
+
+    // change this as needed
+    unscented_ = true;
 }
 
 UKF::~UKF() {}
@@ -132,11 +138,15 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         if(meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_){
             // updating for Laser
             // cout << "updating for Laser" << endl;
-            UpdateLidar(meas_package);
+            // TODO use linear Kalman filter update like in EKF
+            // should yield the same results with less computation.
+            if(unscented_) UpdateLidar(meas_package);
         }
         else if(meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_){
             // updating for Radar
             // cout << "updating for Radar" << endl;
+
+
             UpdateRadar(meas_package);
         }
     }
@@ -178,23 +188,20 @@ void UKF::Prediction(double delta_t) {
 void UKF::UpdateLidar(MeasurementPackage meas_package) {
     // cout << "UKF::UpdateLidar" << endl;
     // measurement generated sigma points
-    MatrixXd Zsig = MatrixXd::Zero(n_laser, n_sig);
 
+    // Below is the code for running the unscented transformation for the Lidar measurements
+    // this is rele not necessary and inefficient
+    MatrixXd Zsig = MatrixXd::Zero(n_laser, n_sig);
     // predicted measurement mean
     VectorXd zpred = VectorXd::Zero(n_laser);
-
     // measurement covariance matrix
     MatrixXd S = MatrixXd::Zero(n_laser, n_laser);
-
     // cross correllation matrix
     MatrixXd Tc = MatrixXd::Zero(n_x_, n_laser);
-
     // predict laser measurements
     PredictLaserMeasurements(Zsig, zpred, S, Tc);
-
     //update state
     UpdateStateLaser(meas_package, Zsig, zpred, S, Tc);
-
     cout << "NIS_laser_: " << NIS_laser_ << endl;
 }
 
@@ -265,9 +272,11 @@ void UKF::GenerateAugmentedSigma(MatrixXd &Xsig_gen_) {
     // set the columns of sigma points matrix
     Xsig_gen_.col(0) = x_aug;
     // get the remaining sigma points
+    // moved outside loop to reduce the number of redundant computations
+    double shared = sqrt(lambda_ + n_aug_);
     for(int a = 0; a < n_aug_; a++){
         // common value
-        VectorXd var = sqrt(lambda_ + n_aug_) * A.col(a);
+        VectorXd var = shared * A.col(a);
         // cout << "var: \n" << var << "\n" << endl;
 
         Xsig_gen_.col(a + 1) = x_aug + var;
@@ -298,14 +307,15 @@ void UKF::PredictSigmaPoints(MatrixXd &Xsig_gen_, const double &delta_t) {
     //predict sigma values
     for(int a = 0; a < n_sig; a++){
         // extract all 7 features from generated sigma points
-        double p_x = Xsig_gen_(0, a);
-        double p_y = Xsig_gen_(1, a);
-        double v = Xsig_gen_(2, a);
-        double yaw = Xsig_gen_(3, a);
-        double yaw_d = Xsig_gen_(4, a);
+        // defining as constants to prevent accidental changes in the current scope
+        const double p_x = Xsig_gen_(0, a);
+        const double p_y = Xsig_gen_(1, a);
+        const double v = Xsig_gen_(2, a);
+        const double yaw = Xsig_gen_(3, a);
+        const double yaw_d = Xsig_gen_(4, a);
         // process noise values
-        double nu_a = Xsig_gen_(5, a);
-        double nu_yaw_dd = Xsig_gen_(6, a);
+        const double nu_a = Xsig_gen_(5, a);
+        const double nu_yaw_dd = Xsig_gen_(6, a);
 
         // predicted state(x and y), speed, yaw angle, yaw rate
 
@@ -357,13 +367,15 @@ void UKF::CalculateMeanCovariance(){
 
     // predicted state mean
 
+    /*
     for(int a = 0; a < n_sig; a++){
         x_ = x_ + weights_(a) * Xsig_pred_.col(a);
     }
+     */
 
     // simpler but more resource intensive it seems
     // (5X1) + (5X15) * (15X1) = (5X1)
-    // x_ = x_ + Xsig_pred_ * weights_;
+    x_ = x_ + Xsig_pred_ * weights_;
 
     // cout << "x_:\n" << x_ << endl;
     // cout << "Xsig_pred_:\n" << Xsig_pred_ << endl;
@@ -373,9 +385,10 @@ void UKF::CalculateMeanCovariance(){
         // state difference
         VectorXd x_diff = Xsig_pred_.col(a) - x_;
 
-        // angle normalization
-        while(x_diff(3) > M_PI) x_diff(3) -= 2.* M_PI;
-        while(x_diff(3) < -M_PI) x_diff(3) += 2.* M_PI;
+        // angle normalization to keep the filter stable and accurate
+        // while(x_diff(3) > M_PI) x_diff(3) -= 2.* M_PI;
+        // while(x_diff(3) < -M_PI) x_diff(3) += 2.* M_PI;
+        NormalizeAngle(x_diff(3));
 
         // cout << "normalized x_diff:\n\t" << x_diff << endl;
 
@@ -403,11 +416,13 @@ void UKF::PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
     }
 
     // mean predicted measurement
+    /*
     for(int a = 0; a < n_sig; a++){
         zpred += weights_(a) * Zsig.col(a);
     }
+     */
     //(2X1) + (2X15) * (15X1) = (2X1)
-    // zpred = zpred + Zsig * weights_;
+    zpred = zpred + Zsig * weights_;
 
     // measurement covariance matrix
     for(int a = 0; a < n_sig; a++){
@@ -421,8 +436,9 @@ void UKF::PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
         // state difference
         VectorXd x_diff = Xsig_pred_.col(a) - x_;
         //angle normalization
-        while(x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
-        while(x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
+        // while(x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
+        // while(x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
+        NormalizeAngle(x_diff(3));
 
         Tc = Tc + weights_(a) * x_diff * z_diff.transpose();
     }
@@ -482,11 +498,13 @@ void UKF::PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
     // cout << "mean predicted measurement" << endl;
     // cout << "zpred: " << zpred << endl;
 
+    /*
     for(int a = 0; a < n_sig; a++){
         zpred = zpred + weights_(a) * Zsig.col(a);
     }
+     */
     //(3X15) * (15X1) = (3X1)
-    // zpred = zpred + Zsig * weights_;
+    zpred = zpred + Zsig * weights_;
 
     // cout << "zpred: " << zpred << endl;
 
@@ -499,8 +517,9 @@ void UKF::PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
         // cout << "z_diff: " << z_diff << endl;
 
         // angle normalization
-        while(z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
-        while(z_diff(1) < - M_PI) z_diff(1) += 2. * M_PI;
+        // while(z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
+        // while(z_diff(1) < - M_PI) z_diff(1) += 2. * M_PI;
+        NormalizeAngle(z_diff(1));
 
         // cout << "z_diff: " << z_diff << endl;
 
@@ -511,8 +530,9 @@ void UKF::PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
         // state difference
         VectorXd x_diff = Xsig_pred_.col(a) - x_;
         //angle normalization
-        while(x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
-        while(x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
+        // while(x_diff(3) > M_PI) x_diff(3) -= 2. * M_PI;
+        // while(x_diff(3) < -M_PI) x_diff(3) += 2. * M_PI;
+        NormalizeAngle(x_diff(3));
 
         Tc = Tc + weights_(a) * x_diff * z_diff.transpose();
     }
@@ -574,6 +594,7 @@ void UKF::UpdateStateRadar(MeasurementPackage meas_package, MatrixXd &Zsig, Vect
     //angle normalization
     // while(z_diff(1) > M_PI) z_diff(1) -= 2. * M_PI;
     // while(z_diff(1) < -M_PI) z_diff(1) += 2. * M_PI;
+    NormalizeAngle(z_diff(1));
 
     // update state mean and covariance
     x_ = x_ + K * z_diff;
@@ -582,4 +603,13 @@ void UKF::UpdateStateRadar(MeasurementPackage meas_package, MatrixXd &Zsig, Vect
     // calculate NIS
     // returned so that the corresponding tool can record its NIS score
     NIS_radar_ =  z_diff.transpose() * S.inverse() * z_diff;
+}
+
+/**
+     * Method for normalizing angles
+     *
+     * @param phi
+     */
+void UKF::NormalizeAngle(double& phi){
+    phi = atan2(sin(phi), cos(phi));
 }

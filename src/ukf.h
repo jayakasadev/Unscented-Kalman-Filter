@@ -11,7 +11,8 @@ using Eigen::MatrixXd;
 using Eigen::VectorXd;
 
 class UKF {
-    public:
+
+public:
     ///* initially set to false, set to true in first call of ProcessMeasurement
     bool is_initialized_;
 
@@ -103,6 +104,23 @@ class UKF {
      * @param meas_package The measurement at k+1
      */
     void UpdateRadar(MeasurementPackage meas_package);
+
+private:
+    /**
+     * Method for generating the Augmented Sigma Points
+     */
+    void GenerateAugmentedSigma(MatrixXd &Xsig_gen_);
+
+    /**
+     * Method for predicting sigma points by applying process model to generated sigma points
+     * We are predicting where the sigma points will be at time k+1 given the generated sigma
+     * points at time k
+     *
+     * Takes a 7x15 matrix in and outputs a 5x15 matrix in Xsig_pred_
+    */
+    void PredictSigmaPoints(MatrixXd Xsig_gen_, const double d);
+
+    void CalculateMeanCovariance();
 };
 
 #endif /* UKF_H */

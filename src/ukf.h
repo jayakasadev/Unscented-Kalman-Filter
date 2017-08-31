@@ -70,6 +70,18 @@ public:
     // number of sigma points
     short n_sig;
 
+    // number of radar input values
+    short n_radar;
+
+    //number of laser input values
+    short n_laser;
+
+    // NIS for radar
+    double NIS_radar_;
+
+    // NIS for laser
+    double NIS_laser_;
+
     /**
      * Constructor
      */
@@ -108,6 +120,8 @@ public:
 private:
     /**
      * Method for generating the Augmented Sigma Points
+     *
+     * @param Xsig_gen_
      */
     void GenerateAugmentedSigma(MatrixXd &Xsig_gen_);
 
@@ -117,10 +131,48 @@ private:
      * points at time k
      *
      * Takes a 7x15 matrix in and outputs a 5x15 matrix in Xsig_pred_
-    */
-    void PredictSigmaPoints(MatrixXd Xsig_gen_, const double d);
+     *
+     * @param Xsig_gen_
+     * @param d
+     */
+    void PredictSigmaPoints(MatrixXd &Xsig_gen_, const double &delta_t);
 
+    /**
+     * Method for calculating the predicted state mean and covariance
+     */
     void CalculateMeanCovariance();
+
+    /**
+     * Method for transforming predicted state into measurement state for Laser and calculating cross correlation matrix
+     *
+     * @param Zsig
+     * @param zpred
+     * @param S
+     * @param Tc
+     */
+    void PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
+
+    /**
+     * Method for transforming predicted state into measurement state for Radar and calculating cross correlation matrix
+     *
+     * @param Zsig
+     * @param zpred
+     * @param S
+     * @param Tc
+     */
+    void PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
+
+    /**
+     * Calculates Kalman Gain and NIS
+     *
+     * @param meas_package
+     * @param Zsig
+     * @param zpred
+     * @param S
+     * @param Tc
+     * @return NIS value as double
+     */
+    double UpdateState(MeasurementPackage meas_package, MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
 };
 
 #endif /* UKF_H */

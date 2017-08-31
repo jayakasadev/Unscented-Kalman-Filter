@@ -166,8 +166,8 @@ void UKF::Prediction(double delta_t) {
     // predict the mean and covariance
     CalculateMeanCovariance();
 
-    cout << "x_: \n" << x_ << "\n" << endl;
-    cout << "P_: \n" << P_ << "\n" << endl;
+    // cout << "x_: \n" << x_ << "\n" << endl;
+    // cout << "P_: \n" << P_ << "\n" << endl;
 
 }
 
@@ -341,7 +341,7 @@ void UKF::PredictSigmaPoints(MatrixXd &Xsig_gen_, const double &delta_t) {
         Xsig_pred_(4, a) = yaw_d_p;
     }
 
-    cout << "Xsig_pred_: \n" << Xsig_pred_ << "\n" << endl;
+    // cout << "Xsig_pred_: \n" << Xsig_pred_ << "\n" << endl;
 }
 
 /**

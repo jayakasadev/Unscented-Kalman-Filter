@@ -1,8 +1,6 @@
 #include "ukf.h"
 #include "Eigen/Dense"
-#include <iostream>
 
-using namespace std;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
 using std::vector;
@@ -101,6 +99,17 @@ UKF::UKF() {
 
     // Identity matrix for laser update
     I = MatrixXd::Identity(n_x_, n_x_);
+
+    // NIS file names
+    radar_file_ = "Radar_NIS_Dataset1.csv";
+    // radar_file_ = "Radar_NIS_Dataset1_LASUKF.csv";
+    laser_ukf_file_ = "Lidar_UKF_NIS_Dataset1.csv";
+    laser_kf_file_ = "Lidar_KF__NIS_Dataset1.csv";
+
+    // radar_file_ = "Radar_NIS_Dataset2.csv";
+    // radar_file_ = "Radar_NIS_Dataset2_LASUKF.csv";
+    // laser_ukf_file_ = "Lidar_UKF_NIS_Dataset2.csv";
+    // laser_kf_file_ = "Lidar_KF__NIS_Dataset2.csv";
 }
 
 UKF::~UKF() {}
@@ -161,7 +170,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         if(meas_package.sensor_type_ == MeasurementPackage::LASER && use_laser_){
             // updating for Laser
             // cout << "updating for Laser" << endl;
-            // TODO use linear Kalman filter update like in EKF
+            // use linear Kalman filter update like in EKF
             // should yield the same results with less computation.
             if(unscented_) UpdateLidar(meas_package);
             else UpdateLidarLKF(meas_package);
@@ -177,6 +186,9 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
 
     // setting the previous timestamp
     time_us_ = meas_package.timestamp_;
+
+    // write NIS to file
+    WriteToFile(meas_package);
 }
 
 /**
@@ -292,7 +304,7 @@ void UKF::GenerateAugmentedSigma(MatrixXd &Xsig_gen_) {
     // cout << "x_aug: \n" << x_aug << "\n" << endl;
     // cout << "x_aug: \n" << x_aug.size() << "\n" << endl;
 
-    x_aug.head(n_x_) = x_; // TODO possible source of bug
+    x_aug.head(n_x_) = x_;
 
     // cout << "x_aug: \n" << x_aug << "\n" << endl;
 
@@ -720,4 +732,36 @@ void UKF::UpdateStateRadar(MeasurementPackage meas_package, MatrixXd &Zsig, Vect
      */
 void UKF::NormalizeAngle(double& phi){
     phi = atan2(sin(phi), cos(phi));
+}
+
+/**
+ * Method for writing NIS values to file
+ *
+ * @param meas_package
+ */
+void UKF::WriteToFile(MeasurementPackage meas_package){
+ if(meas_package.sensor_type_ == MeasurementPackage::RADAR){
+     // write to radar file
+     // open file
+     file.open(radar_file_);
+
+     // write to file
+     file << NIS_radar_ << " ";
+ }
+ else if(meas_package.sensor_type_ == MeasurementPackage::LASER){
+     if(unscented_){
+         // write to unscented laser file
+         file.open(laser_ukf_file_);
+     }
+     else{
+         // write to linear kalman filter file
+         file.open(laser_kf_file_);
+     }
+
+     // write to file
+     file << NIS_laser_ << " ";
+ }
+
+// close file
+file.close();
 }

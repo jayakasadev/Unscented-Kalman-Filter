@@ -6,9 +6,11 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <iostream>
 
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using namespace std;
 
 class UKF {
 
@@ -91,11 +93,20 @@ public:
     // measurement noise covariance for radar
     MatrixXd R_radar_;
 
-    // TODO description
+    // projection matrix for laser linear kalman filter
+    // laser process model usage
     MatrixXd H_;
 
     // Identity matrix
     MatrixXd I;
+
+    // for writing to file
+    ofstream file;
+
+     // NIS file names
+    string radar_file_;
+    string laser_ukf_file_;
+    string laser_kf_file_;
 
     /**
      * Constructor
@@ -233,6 +244,13 @@ private:
      * @param phi
      */
     void NormalizeAngle(double& phi);
+
+    /**
+ * Method for writing NIS values to file
+ *
+ * @param meas_package
+ */
+    void WriteToFile(MeasurementPackage meas_package);
 
 };
 

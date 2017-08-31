@@ -30,10 +30,10 @@ UKF::UKF() {
     P_ = MatrixXd::Identity(5, 5);
 
     // Process noise standard deviation longitudinal acceleration in m/s^2
-    std_a_ = 0.5; // TODO tune
+    std_a_ = 1; // TODO tune
 
     // Process noise standard deviation yaw acceleration in rad/s^2
-    std_yawdd_ = 1.0; // TODO tune
+    std_yawdd_ = 0.5; // TODO tune
 
     // Laser measurement noise standard deviation position1 in m
     std_laspx_ = 0.15;
@@ -155,7 +155,7 @@ void UKF::Prediction(double delta_t) {
     // cout << "P_: \n" << P_ << "\n" << endl;
     // generating augmented sigma points
     // matrix for generated sigma points
-    MatrixXd Xsig_gen_ = MatrixXd(n_aug_, n_sig);
+    MatrixXd Xsig_gen_ = MatrixXd::Zero(n_aug_, n_sig);
     // generating augmented sigma points
     // returns a 7 dimentional vector
     GenerateAugmentedSigma(Xsig_gen_);
@@ -350,8 +350,8 @@ void UKF::PredictSigmaPoints(MatrixXd &Xsig_gen_, const double &delta_t) {
 void UKF::CalculateMeanCovariance(){
     // cout << "UKF::CalculateMeanCovariance" << endl;
     // resetting the values in the state vector and the covariance vector because we no longer need those values
-    // x_.fill(0);
-    // P_.fill(0);
+    x_.fill(0);
+    P_.fill(0);
 
     // cout << "x_:\n" << x_ << endl;
 

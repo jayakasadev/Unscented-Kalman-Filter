@@ -85,6 +85,18 @@ public:
     // turn unscented transformation on or off and use linear kalman filter for laser
     bool unscented_;
 
+    // measurement noise covariance for laser
+    MatrixXd R_laser_;
+
+    // measurement noise covariance for radar
+    MatrixXd R_radar_;
+
+    // TODO description
+    MatrixXd H_;
+
+    // Identity matrix
+    MatrixXd I;
+
     /**
      * Constructor
      */
@@ -113,6 +125,12 @@ public:
      * @param meas_package The measurement at k+1
      */
     void UpdateLidar(MeasurementPackage meas_package);
+
+    /**
+     * Updates the state and the state covariance matrix using a laser measurement.
+     * @param {MeasurementPackage} meas_package
+     */
+    void UpdateLidarLKF(MeasurementPackage meas_package);
 
     /**
      * Updates the state and the state covariance matrix using a radar measurement
@@ -149,15 +167,19 @@ private:
 
     /**
      * Method for transforming predicted state into measurement state for Laser
+     * Linear Kalman Filter
+     *
+     * @param zpred
      */
-    void PredictLaserMeasurements();
+    void PredictLaserMeasurements(MeasurementPackage meas_package, VectorXd &zpred);
 
     /**
      * Calculates Kalman Gain and NIS for Laser
+     * Linear Kalman Filter
      *
-     * @param meas_package
+     * @param zpred
      */
-    void UpdateStateLaser(MeasurementPackage meas_package);
+    void UpdateStateLaser(VectorXd &zpred);
 
     // unscented transformation for lidar
 

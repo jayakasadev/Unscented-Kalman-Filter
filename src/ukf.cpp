@@ -33,7 +33,7 @@ UKF::UKF() {
     std_a_ = 1; // TODO tune
 
     // Process noise standard deviation yaw acceleration in rad/s^2
-    std_yawdd_ = 0.5; // TODO tune
+    std_yawdd_ = 0.3; // TODO tune
 
     // Laser measurement noise standard deviation position1 in m
     std_laspx_ = 0.15;
@@ -79,7 +79,28 @@ UKF::UKF() {
     is_initialized_ = false;
 
     // change this as needed
-    unscented_ = true;
+    // unscented_ = true;
+    unscented_ = false;
+
+    // for use with linear kalman filter for laser update
+    H_ = MatrixXd::Zero(2, 5);
+    H_(0, 0) = 1;
+    H_(1, 1) = 1;
+
+    // redudant to recreate every time
+    // measurement noise covariance for laser
+    R_laser_ = MatrixXd::Zero(n_laser, n_laser);
+    R_laser_(0, 0) = pow(std_laspx_, 2);
+    R_laser_(1, 1) = pow(std_laspy_, 2);
+
+    // measurement noise covariance for radar
+    R_radar_ = MatrixXd::Zero(n_radar, n_radar);
+    R_radar_(0, 0) = pow(std_radr_, 2);
+    R_radar_(1, 1) = pow(std_radphi_, 2);
+    R_radar_(2, 2) = pow(std_radr_, 2);
+
+    // Identity matrix for laser update
+    I = MatrixXd::Identity(n_x_, n_x_);
 }
 
 UKF::~UKF() {}
@@ -89,6 +110,7 @@ UKF::~UKF() {}
  * either radar or laser.
  */
 void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
+    // cout << "input: " << meas_package.raw_measurements_ << endl;
     if(!is_initialized_){
         // this is the first measurement
         // cout << "this is the first measurement" << endl;
@@ -101,9 +123,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
         }
         else if(meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_){
             // proceed with Radar data (rho, phi, rho_dot)
-            double rho = meas_package.raw_measurements_(0);
-            double phi = meas_package.raw_measurements_(1);
-            double dot = meas_package.raw_measurements_(2);
+            // made constants to prevent modification
+            const double rho = meas_package.raw_measurements_(0);
+            const double phi = meas_package.raw_measurements_(1);
+            const double dot = meas_package.raw_measurements_(2);
 
             // set values in x_ state vector
             x_(0) = rho * cos(phi);
@@ -141,6 +164,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
             // TODO use linear Kalman filter update like in EKF
             // should yield the same results with less computation.
             if(unscented_) UpdateLidar(meas_package);
+            else UpdateLidarLKF(meas_package);
         }
         else if(meas_package.sensor_type_ == MeasurementPackage::RADAR && use_radar_){
             // updating for Radar
@@ -202,6 +226,25 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
     PredictLaserMeasurements(Zsig, zpred, S, Tc);
     //update state
     UpdateStateLaser(meas_package, Zsig, zpred, S, Tc);
+    cout << "NIS_laser_: " << NIS_laser_ << endl;
+}
+
+/**
+ * Updates the state and the state covariance matrix using a laser measurement.
+ * Linear Kalman Filter
+ * @param {MeasurementPackage} meas_package
+ */
+void UKF::UpdateLidarLKF(MeasurementPackage meas_package) {
+    // cout << "UKF::UpdateLidarLKF" << endl;
+    // measurement generated sigma points
+
+    // Below is the code for running the Linear Kalman Filter for the Lidar measurements
+    // predicted measurement mean
+    VectorXd zpred = VectorXd::Zero(n_laser);
+    // predict laser measurements
+    PredictLaserMeasurements(meas_package, zpred);
+    //update state
+    UpdateStateLaser(zpred);
     cout << "NIS_laser_: " << NIS_laser_ << endl;
 }
 
@@ -398,6 +441,76 @@ void UKF::CalculateMeanCovariance(){
     // cout << "P_:\n" << P_ << endl;
 }
 
+// linear kalman filter
+
+/**
+ * Method for transforming predicted state into measurement state for Laser
+ * Linear Kalman Filter
+ *
+ * @param meas_package
+ * @param zpred
+ */
+void UKF::PredictLaserMeasurements(MeasurementPackage meas_package, VectorXd &zpred){
+    // cout << "UKF::PredictLaserMeasurements: " << endl;
+    // (2 x 1) = (2 x 1) - (2 x 5) * (5 x 1)
+    zpred = meas_package.raw_measurements_ - H_ * x_;
+
+    // cout << "zpred: \n" << zpred << endl;
+}
+
+/**
+ * Calculates Kalman Gain and NIS for Laser
+ * Linear Kalman Filter
+ *
+ * @param zpred
+ */
+void UKF::UpdateStateLaser(VectorXd &zpred){
+    // cout << "UKF::UpdateStateLaser: " << endl;
+
+    // Applying the Linear Kalman Filter here
+    // H transpose
+    MatrixXd HT = H_.transpose();
+
+
+    // cout << "R_laser_:\n" << R_laser_ << endl;
+    // cout << "H_:\n" << H_ << endl;
+    // cout << "P_:\n" << P_ << endl;
+    // cout << "HT:\n" << HT << endl;
+
+
+    // project system uncertainty into measurement space
+    // measurement noise covariance + measurement projection function
+    MatrixXd S = R_laser_ + (H_ * P_ * HT);
+
+    // cout << "S:\n" << S << endl;
+
+    // S Inverse
+    MatrixXd SI = S.inverse();
+
+    // cout << "SI:\n" << SI << endl;
+
+    // Kalman Filter gain
+    MatrixXd K = P_ * HT * SI;
+
+    // cout << "K:\n" << K << endl;
+
+    // x_ estimate
+    x_ = x_ + K * zpred;
+
+    // cout << "x_:\n" << x_ << endl;
+
+    // cout << "I:\n" << I << endl;
+
+    // uncertainty matrix
+    P_ = (I - K * H_) * P_;
+
+    // cout << "P_:\n" << P_ << endl;
+
+    // calculate NIS
+    // returned so that the corresponding tool can record its NIS score
+    NIS_laser_ =  zpred.transpose() * S.inverse() * zpred;
+}
+
 /**
  * Method for transforming predicted state into measurement state for Laser and cross correlation matrix
  *
@@ -443,11 +556,38 @@ void UKF::PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
         Tc = Tc + weights_(a) * x_diff * z_diff.transpose();
     }
 
-    MatrixXd R = MatrixXd::Zero(n_laser, n_laser);
-    R(0, 0) = pow(std_laspx_, 2);
-    R(1, 1) = pow(std_laspy_, 2);
+    // adding noise
+    S = S + R_laser_;
 
-    S = S + R;
+    // cout << "S.cols(): " << S.cols() << endl;
+    // cout << "S.rows(): " << S.rows() << endl;
+}
+
+/**
+ * Calculates Kalman Gain and NIS for Laser
+ *
+ * @param meas_package
+ * @param Zsig
+ * @param zpred
+ * @param S
+ * @param Tc
+ * @return NIS value as double
+ */
+void UKF::UpdateStateLaser(MeasurementPackage meas_package, MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc){
+    // cout << "UKF::UpdateState" << endl;
+
+    // Kalman Gain
+    MatrixXd K = Tc * S.inverse();
+
+    VectorXd z_diff = meas_package.raw_measurements_ - zpred;
+
+    // update state mean and covariance
+    x_ = x_ + K * z_diff;
+    P_ = P_ - K * S * K.transpose();
+
+    // calculate NIS
+    // returned so that the corresponding tool can record its NIS score
+    NIS_laser_ =  z_diff.transpose() * S.inverse() * z_diff;
 }
 
 /**
@@ -538,40 +678,8 @@ void UKF::PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S,
     }
 
     // add measurement noise
-    // cout << "add measurement noise" << endl;
-    MatrixXd R = MatrixXd::Zero(n_radar, n_radar);
-    R(0, 0) = pow(std_radr_, 2);
-    R(1, 1) = pow(std_radphi_, 2);
-    R(2, 2) = pow(std_radr_, 2);
 
-    S = S + R;
-}
-
-/**
- * Calculates Kalman Gain and NIS for Laser
- *
- * @param meas_package
- * @param Zsig
- * @param zpred
- * @param S
- * @param Tc
- * @return NIS value as double
- */
-void UKF::UpdateStateLaser(MeasurementPackage meas_package, MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc){
-    // cout << "UKF::UpdateState" << endl;
-
-    // Kalman Gain
-    MatrixXd K = Tc * S.inverse();
-
-    VectorXd z_diff = meas_package.raw_measurements_ - zpred;
-
-    // update state mean and covariance
-    x_ = x_ + K * z_diff;
-    P_ = P_ - K * S * K.transpose();
-
-     // calculate NIS
-    // returned so that the corresponding tool can record its NIS score
-    NIS_laser_ =  z_diff.transpose() * S.inverse() * z_diff;
+    S = S + R_radar_;
 }
 
 /**

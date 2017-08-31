@@ -143,25 +143,27 @@ private:
     void CalculateMeanCovariance();
 
     /**
-     * Method for transforming predicted state into measurement state for Laser
+     * Method for transforming predicted state into measurement state for Laser and cross correlation matrix
      *
      * @param Zsig
      * @param zpred
      * @param S
+     * @param Tc
      */
-    void PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S);
+    void PredictLaserMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
 
     /**
-     * Method for transforming predicted state into measurement state for Radar
+     * Method for transforming predicted state into measurement state for Radar and cross correlation matrix
      *
      * @param Zsig
      * @param zpred
      * @param S
+     * @param Tc
      */
-    void PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S);
+    void PredictRadarMeasurements(MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
 
     /**
-     * Calculates Cross Correlation, Kalman Gain and NIS for Laser
+     * Calculates Kalman Gain and NIS for Laser
      *
      * @param meas_package
      * @param Zsig
@@ -172,7 +174,7 @@ private:
     void UpdateStateLaser(MeasurementPackage meas_package, MatrixXd &Zsig, VectorXd &zpred, MatrixXd &S, MatrixXd &Tc);
 
     /**
-     * Calculates Cross Correlation, Kalman Gain and NIS for Radar
+     * Calculates Kalman Gain and NIS for Radar
      *
      * @param meas_package
      * @param Zsig

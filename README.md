@@ -1,7 +1,10 @@
 # Unscented Kalman Filter
-Self-Driving Car Engineer Nanodegree Program
+In this project, I utilized an Unscented Kalman Filter to estimate the state of a moving object of interest with noisy lidar and radar measurements. The filter augments all incoming data from the radar sensor because it is non-gaussian. This allows it to transform the data for use with Unscented Filter which allows for better estimates of non-gaussian values. 
 
-In this project, I utilized an Unscented Kalman Filter to estimate the state of a moving object of interest with noisy lidar and radar measurements.
+The Unscented Kalman filter has the same three steps as an Extended Kalman Filter:
+    Initialization
+    Prediction
+    Update
 
 ## Sigma Points 
 Regardless of the data source, data is always augmented to account for process noise. 
